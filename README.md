@@ -12,7 +12,7 @@ The Python file `geoserver.py` is the code to execute and publish the directory 
 python3 geoserver.py -g "http://localhost:8080/geoserver/rest" -u admin -p geoserver -c geo-data-clone -cs "azure_connection_string" -sas "azure_sas_token" -d "Group-D/VIZAG/Cycle_01/GKONDURU-IP2"
 ```
 
-# Installing GeoServer:
+# Installing GeoServer
 Build the `compose.yaml` and run
 
 **Usage**: `docker compose up`
@@ -22,18 +22,17 @@ Alternately,
 docker run -it -p8080:8080 --mount type=bind,src=/home/sunil/Downloads/geoserver_datadir,target=/opt/geoserver_data --env INSTALL_EXTENSIONS=true --env COMMUNITY_EXTENSIONS="cog-azure cog-http" docker.osgeo.org/geoserver:2.26.x
 ```
 
-# Details:
+# Details
 The python file `geoserver.py` automatically creates a workspace if not already present, otherwise uses the existing workspace for updation. A GeoTiff store is created and the corresponding layer is published in GeoServer, for each of the GeoTiff file present in the input directory. Ultimately, a layer group is created and each of the published layers are added to the layer group. If the layer group already exists, then then existing layer group simply gets appended with the newly published layers.
 
 ## Naming conventions:
 
-Sample azure storage container (parameter to the code): `geo-data-clone`
+Sample azure storage container (A parameter to the code): `geo-data-clone`
 
-Sample input directory (i.e. the directory within the storage container where GeoTiff files are present. A parameter to the code): `Group-D/VIZAG/Cycle_01/GKONDURU-IP2`
+Sample input directory (i.e. the directory within the azure storage container where GeoTiff files are present. A parameter to the code): `Group-D/VIZAG/Cycle_01/GKONDURU-IP2`
 
-Sample GeoTiff blob path: `Group-D/VIZAG/Cycle_01/GKONDURU-IP2/IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG.tif`
-
-**Following are created by the python code, when the above image gets published**:
+**Following are created by the python code, when an image gets published in GeoServer**:
+Sample GeoTiff blob which gets published: `Group-D/VIZAG/Cycle_01/GKONDURU-IP2/IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG.tif`
 
 Workspace name: `VIZAG`
 
@@ -46,7 +45,7 @@ Layer title: `IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
 Layer group name: `Group-D_VIZAG_Cycle_01_GKONDURU-IP2`
 
 # Alternate way of publishing, using imagemosaic
-This approach is a faster way to publish and manage the images. However, this would need more work, as the performance of the rendered images is poor. Hence, an in-depth analysis is required.
+This approach is a faster way to publish and manage the images. However, this would need more work, as the performance of the rendered images is poor and would need an in-depth analysis. The source code `geoserver.py` does not include this option.
 
 ## Steps:
 1. Mount the blob storage on the system running GeoServer

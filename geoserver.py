@@ -59,6 +59,23 @@ def get_workspace(workspace_name):
 
     return status_code, response_text
 
+def get_layers(workspace_name):
+    url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layers.json"
+    status_code, response_text = send_request("GET", url, {})
+
+    return status_code, response_text
+
+def get_layer_group(workspace_name, layer_group_name):
+    url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layergroups/{layer_group_name}.json"
+    status_code, response_text = send_request("GET", url, {})
+
+    return status_code, response_text
+
+def get_stores(workspace_name):
+    url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores.json"
+    status_code, response_text = send_request("GET", url, {})
+
+    return status_code, response_text
 
 # Create a workspace
 def create_workspace(workspace_name):
@@ -141,21 +158,6 @@ def create_layer(workspace_name, store_name, blob_url):
     logging.info(f"Layer: {response_text}. Status: {status_code}")
 
 
-def get_layers(workspace_name):
-    url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layers.json"
-    status_code, response_text = send_request("GET", url, {})
-
-    return response_text
-
-
-def get_layer_group(workspace_name, layer_group_name):
-    url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layergroups/{layer_group_name}.json"
-    status_code, response_text = send_request("GET", url, {})
-
-    return status_code, response_text
-
-
-
 # Create new layer group/Update the existing layer group, with newly published layers.
 # Layer group name convention --> group_region_phase_section
 def create_layer_group(workspace_name, new_published_layers, blob_url):
@@ -163,8 +165,11 @@ def create_layer_group(workspace_name, new_published_layers, blob_url):
 
     new_published = []
     new_styles = []
+    
     # Get all published layers in the workspace and add only the newly published layers to the layer group. Ignore the rest.
-    layers = json.loads(get_layers(workspace_name))
+    status_code, layers = get_layers(workspace_name)
+    layers = json.loads(layers)
+
     for layer in layers.get("layers").get("layer"):
         if layer["name"] in new_published_layers:
             new_published.append(
@@ -253,8 +258,35 @@ def publish_folder(sub_directory):
     else:
         logging.info("Nothing to be added to layer group")
 
+# Delete all published stores, layers and layer group, corresponding to the given input directory
 def unpublish_folder(sub_directory):
-    logging.info("Unpublished")
+    split_names = sub_directory.split("/")
+    workspace_name = split_names[1]
+    store_name_substring = f"{split_names[2]}_{split_names[3]}"
+
+    # Get all stores published under the workspace
+    status_code, stores = get_stores(workspace_name)
+    stores = json.loads(stores)
+
+    # Get all stores of interest only (i.e. corresponding the the given input directory only)
+    stores_to_delete = []
+    for store in stores.get("coverageStores").get("coverageStore"):
+        store_name = store["name"]
+        if store_name_substring in store_name:
+            stores_to_delete.append(store_name)
+
+    # Delete 1 store at a time
+    for i, store_name in enumerate(stores_to_delete):
+            logging.info(f"Deleting store {i+1}/{len(stores_to_delete)}: {store_name} ...")
+            url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}?recurse=true"
+            status_code, response_text = send_request("DELETE", url, {})
+            
+            logging.info(response_text)
+            if status_code in [200, 201]:
+                logging.info(f"Deleted store: {store_name}. Status: {status_code}")
+            else:
+                logging.error(f"ERROR: Could not delete the store: {store_name}. Status: {status_code}")
+
 
 # Parse command line arguments and assign to global variables
 def parse_args():
