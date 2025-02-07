@@ -27,9 +27,9 @@ The python file `geoserver.py` automatically creates a workspace if not already 
 
 ## Naming conventions:
 
-Sample azure storage container: `geo-data-clone`
+Sample azure storage container (parameter to the code): `geo-data-clone`
 
-Sample input directory to the code (i.e. the directory within the storage container where GeoTiff files are present): `Group-D/VIZAG/Cycle_01/GKONDURU-IP2`
+Sample input directory (i.e. the directory within the storage container where GeoTiff files are present. A parameter to the code): `Group-D/VIZAG/Cycle_01/GKONDURU-IP2`
 
 Sample GeoTiff blob path: `Group-D/VIZAG/Cycle_01/GKONDURU-IP2/IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG.tif`
 
@@ -37,13 +37,13 @@ Sample GeoTiff blob path: `Group-D/VIZAG/Cycle_01/GKONDURU-IP2/IPS G KONDURU-IP2
 
 Workspace name: `VIZAG`
 
-Store name: `IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG` (i.e. name of the tiff file)
+Store name: `Cycle_01_GKONDURU-IP2_IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
 
-Layer title: `Group-D_VIZAG_Cycle_01_GKONDURU-IP2`
+Layer name: `Cycle_01_GKONDURU-IP2_IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
 
-Layer name: `VIZAG:IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
+Layer title: `IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
 
-Layer group name: `Group-D_VIZAG_Cycle_01`
+Layer group name: `Group-D_VIZAG_Cycle_01_GKONDURU-IP2`
 
 # Alternate way of publishing, using imagemosaic
 This approach is a faster way to publish and manage the images. However, this would need more work, as the performance of the rendered images is poor. Hence, an in-depth analysis is required.
