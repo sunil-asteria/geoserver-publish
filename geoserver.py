@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 from base64 import b64encode
 from pathlib import Path
 
@@ -93,13 +94,14 @@ def create_workspace(workspace_name):
         logging.info(f"Workspace: {workspace_name} created. Response: {response_text}. Status: {status_code}")
 
 
-# Create a GeoTiff store. Store name convention --> phase-name_section-name_image-name
+# Create a GeoTiff store. 
+# Convention --> {Section Name}_{Image Name}. eg: 10260001_S_Name_K.Test_Orthomosaic_19_COG.tif,
+# Where Section Name = 10260001_S_Name & Image Name = K.Test_Orthomosaic_19_COG.tif
 def create_coveragestore(workspace_name, blob_url):
-    # Create a new Geotiff store with its name = image name
     # Store name cannot have special characters, but can have spaces. Whereas URL cannot have spaces, hence it needs to be encoded.
     image_name = Path(blob_url).stem
     split_names = blob_url.split("/")
-    store_name = f"{split_names[6]}_{split_names[7]}_{image_name}"
+    store_name = f"{split_names[7]}_{image_name}"
     #store_name = requests.utils.unquote(store_name)
     
     # Encode the URL
@@ -139,9 +141,10 @@ def create_coveragestore(workspace_name, blob_url):
     return store_name
 
 
-# Create a layer under the given workspace. Layer name and store names are the same. Convention --> phase-name_section-name_image-name
+# Create a layer under the given workspace. Convention --> Same name as store name
 def create_layer(workspace_name, store_name, blob_url):
     image_name = Path(blob_url).stem
+    image_name = os.path.basename(image_name).split(".")[0]
 
     url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}/coverages"
     payload = json.dumps({
@@ -159,7 +162,7 @@ def create_layer(workspace_name, store_name, blob_url):
 
 
 # Create new layer group/Update the existing layer group, with newly published layers.
-# Layer group name convention --> group_region_phase_section
+# Convention --> C01_WorkspaceName_SectionCode. eg: C01_JHBDPL_10260001
 def create_layer_group(workspace_name, new_published_layers, blob_url):
     logging.info(f"Layers to be added to the layer group: {new_published_layers}")
 
@@ -183,7 +186,14 @@ def create_layer_group(workspace_name, new_published_layers, blob_url):
 
     # Create a layer group name
     split_names = blob_url.split("/")
-    layer_group_name = f"{split_names[4]}_{split_names[5]}_{split_names[6]}_{split_names[7]}"
+    split_cycle_name = split_names[6].split("_")
+    # Make it generic enough. If cycle name doesn't have a cycle number in it, use the whole cycle name. Else, use just the cycle number.
+    if len(split_cycle_name) > 1:
+        cycle_number = split_cycle_name[1]
+    else:
+        cycle_number = split_cycle_name
+    section_code = split_names[7].split("_")[0]
+    layer_group_name = f"C{cycle_number}_{split_names[5]}_{section_code}"
 
     # Check if the layer group name exists in the workspace
     status_code, response_text = get_layer_group(workspace_name, layer_group_name)
@@ -247,6 +257,7 @@ def publish_folder(sub_directory):
     store_names = []
     # Iterate over each blob, create a GeoTiff coverage store and publish the layer
     for blob_url in blob_url_list:
+        logging.info("\n")
         store_name = create_coveragestore(workspace_name, blob_url)
         if store_name:
             store_names.append(store_name)
@@ -262,7 +273,6 @@ def publish_folder(sub_directory):
 def unpublish_folder(sub_directory):
     split_names = sub_directory.split("/")
     workspace_name = split_names[1]
-    store_name_substring = f"{split_names[2]}_{split_names[3]}"
 
     # Get all stores published under the workspace
     status_code, stores = get_stores(workspace_name)
@@ -270,22 +280,28 @@ def unpublish_folder(sub_directory):
 
     # Get all stores of interest only (i.e. corresponding the the given input directory only)
     stores_to_delete = []
-    for store in stores.get("coverageStores").get("coverageStore"):
-        store_name = store["name"]
-        if store_name_substring in store_name:
-            stores_to_delete.append(store_name)
 
-    # Delete 1 store at a time
-    for i, store_name in enumerate(stores_to_delete):
-            logging.info(f"Deleting store {i+1}/{len(stores_to_delete)}: {store_name} ...")
-            url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}?recurse=true"
-            status_code, response_text = send_request("DELETE", url, {})
-            
-            logging.info(response_text)
-            if status_code in [200, 201]:
-                logging.info(f"Deleted store: {store_name}. Status: {status_code}")
-            else:
-                logging.error(f"ERROR: Could not delete the store: {store_name}. Status: {status_code}")
+    # If stores not empty
+    if not stores.get("coverageStores") == "":
+        for store in stores.get("coverageStores").get("coverageStore"):
+            store_name = store["name"]
+            section_code = store_name.split("_")[0]
+            if section_code in sub_directory:
+                stores_to_delete.append(store_name)
+
+        # Delete 1 store at a time
+        for i, store_name in enumerate(stores_to_delete):
+                logging.info(f"\nDeleting store {i+1}/{len(stores_to_delete)}: {store_name} ...")
+                url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}.json?recurse=true"
+                status_code, response_text = send_request("DELETE", url, {})
+                
+                logging.info(response_text)
+                if status_code in [200, 201]:
+                    logging.info(f"Deleted store: {store_name}. Status: {status_code}")
+                else:
+                    logging.error(f"ERROR: Could not delete the store: {store_name}. Status: {status_code}")
+    else:
+        logging.info(f"Nothing to unpublish")
 
 
 # Parse command line arguments and assign to global variables

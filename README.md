@@ -9,7 +9,7 @@ The Python file `geoserver.py` is the code to execute and publish the directory 
 
 **Usage**: 
 ```
-python3 geoserver.py -g "http://localhost:8080/geoserver/rest" -u admin -p geoserver -c geo-data-clone -cs "azure_connection_string" -sas "azure_sas_token" -d "Group-D/VIZAG/Cycle_01/GKONDURU-IP2"
+python3 geoserver.py -g "http://localhost:8080/geoserver/rest" -u admin -p geoserver -c geo-data-clone -cs "azure_connection_string" -sas "azure_sas_token" -d "Group-D/VIZAG/Cycle_01/GKONDURU-IP2" -P
 ```
 
 # Installing GeoServer
@@ -29,21 +29,19 @@ The python file `geoserver.py` automatically creates a workspace if not already 
 
 Sample azure storage container (A parameter to the code): `geo-data-clone`
 
-Sample input directory (i.e. the directory within the azure storage container where GeoTiff files are present. A parameter to the code): `Group-D/VIZAG/Cycle_01/GKONDURU-IP2`
+Sample input directory (i.e. the directory within the azure storage container where GeoTiff files are present. A parameter to the code): ` Group-C/JHBDPL/Cycle_01/10260001_S_Name`
 
 ### Following are created by the python code, when an image gets published in GeoServer:
 
-**Sample GeoTiff blob to be published**: `Group-D/VIZAG/Cycle_01/GKONDURU-IP2/IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG.tif`
+**Sample GeoTiff blob to be published**: `Group-C/JHBDPL/Cycle_01/10260001_S_Name/K.CHERUVU-GVK_Orthomosaic_19_COG.tif`
 
-**Workspace name**: `VIZAG`
+**Workspace name**: `JHBDPL`
 
-**Store name**: `Cycle_01_GKONDURU-IP2_IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
+**Store name**: `{Section Name}_{Image Name}`. eg: `10260001_S_Name_K.CHERUVU-GVK_Orthomosaic_19_COG`
 
-**Layer name**: `Cycle_01_GKONDURU-IP2_IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
+**Layer name**: Same as store name
 
-**Layer title**: `IPS G KONDURU-IP2 SURYAPET_Orthomosaic_35_COG`
-
-**Layer group name**: `Group-D_VIZAG_Cycle_01_GKONDURU-IP2`
+**Layer group name**: `C{Cycle Number}_{Workspace Name)_{Section Code}`. eg: `C01_JHBDPL_10260001`
 
 # Alternate way of publishing, using imagemosaic
 This approach is a faster way to publish and manage the images. However, this would need more work, as the performance of the rendered images is poor and would need an in-depth analysis. The source code `geoserver.py` does not include this option.
