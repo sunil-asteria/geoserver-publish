@@ -132,11 +132,15 @@ def create_coveragestore(workspace_name, blob_url):
         }
     )
 
+    logging.info(f"Creating new coverage store: {store_name} ...")
     status_code, response_text = send_request("POST", url, payload)
-    logging.info(f"Coverage store: {response_text}. Status: {status_code}")
 
-    if status_code not in [200,201]:
+    if status_code in [200,201]:
+        logging.info(f"Success. Response: {response_text}. Status: {status_code}")
+    else:
+        logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
         store_name = None
+        
 
     return store_name
 
@@ -157,14 +161,17 @@ def create_layer(workspace_name, store_name, blob_url):
         }
     })
 
+    logging.info(f"Creating new layer: {store_name} ...")
     status_code, response_text = send_request("POST", url, payload)
-    logging.info(f"Layer: {response_text}. Status: {status_code}")
-
+    if status_code in [200,201]:
+        logging.info(f"Success. Response: {response_text}. Status: {status_code}")
+    else:
+        logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
 
 # Create new layer group/Update the existing layer group, with newly published layers.
 # Convention --> C01_WorkspaceName_SectionCode. eg: C01_JHBDPL_10260001
 def create_layer_group(workspace_name, new_published_layers, blob_url):
-    logging.info(f"Layers to be added to the layer group: {new_published_layers}")
+    logging.info(f"\nLayers to be added to the layer group: {new_published_layers}")
 
     new_published = []
     new_styles = []
@@ -200,7 +207,7 @@ def create_layer_group(workspace_name, new_published_layers, blob_url):
 
     # If layer group already exists in the workspace, then update the existing layer group
     if status_code == 200:
-        logging.info(f"Layer group: {layer_group_name} already exists")
+        logging.info(f"Layer group: {layer_group_name} already exists. Updating it.")
         method = "PUT"
         url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layergroups/{layer_group_name}.json"
         payload = json.loads(response_text)
@@ -218,7 +225,7 @@ def create_layer_group(workspace_name, new_published_layers, blob_url):
             logging.error(f"ERROR: Not adding the layer to the layergroup: {layer_group_name}...........")
     # If layer group doesn't exist in the workspace, then create a new layer group
     else:
-        logging.info(f"Layer group: {layer_group_name} creating...")
+        logging.info(f"Creating new layer group: {layer_group_name} ...")
         method = "POST"
         url = GEOSERVER_URL + "/layergroups"
         payload = {
@@ -233,15 +240,10 @@ def create_layer_group(workspace_name, new_published_layers, blob_url):
 
     payload = json.dumps(payload)
     status_code, response_text = send_request(method, url, payload)
-    logging.info(response_text)
     if status_code in [200, 201]:
-        logging.info(
-            f"Layer group: {layer_group_name} created/updated. Status: {status_code}"
-        )
+        logging.info(f"Success. Response: {response_text}. Status: {status_code}")
     else:
-        logging.error(
-            f"ERROR: Could not create/update the layer group {layer_group_name}. Status: {status_code}"
-        )
+        logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
 
 
 # Publish all .tif files within the given sub directory
@@ -295,11 +297,10 @@ def unpublish_folder(sub_directory):
                 url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}.json?recurse=true"
                 status_code, response_text = send_request("DELETE", url, {})
                 
-                logging.info(response_text)
                 if status_code in [200, 201]:
-                    logging.info(f"Deleted store: {store_name}. Status: {status_code}")
+                    logging.info(f"Success. Response: {response_text}. Status: {status_code}")
                 else:
-                    logging.error(f"ERROR: Could not delete the store: {store_name}. Status: {status_code}")
+                    logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
     else:
         logging.info(f"Nothing to unpublish")
 
