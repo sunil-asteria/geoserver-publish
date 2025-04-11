@@ -4,6 +4,7 @@ import logging
 import os
 from base64 import b64encode
 from pathlib import Path
+import re
 
 import requests
 from azure.storage.blob import BlobClient, BlobServiceClient, ContainerClient
@@ -199,7 +200,13 @@ def create_layer_group(workspace_name, new_published_layers, blob_url):
         cycle_number = split_cycle_name[1]
     else:
         cycle_number = split_cycle_name
-    section_code = split_names[7].split("_")[0]
+    
+    # Find the section code numbers, using regular expression
+    #section_code = split_names[7].split("_")[0]
+    match = re.match(r'^(\d+)', split_names[7])
+    section_code = match.group(1)
+
+    # Construct layer group name
     layer_group_name = f"C{cycle_number}_{split_names[5]}_{section_code}"
 
     # Check if the layer group name exists in the workspace
