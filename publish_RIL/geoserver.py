@@ -2,15 +2,19 @@ import argparse
 import json
 import logging
 import os
-from base64 import b64encode
-from pathlib import Path
 import re
+from base64 import b64encode
+from collections import defaultdict
+from pathlib import Path
 
 import requests
 from azure.storage.blob import BlobClient, BlobServiceClient, ContainerClient
 from requests.auth import HTTPBasicAuth
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
+    logging.WARNING
+)
 
 # Global variables
 GEOSERVER_URL = None
@@ -22,7 +26,7 @@ CONNECTION_STRING = None
 SAS = None
 PUBLISH = None
 DELETE = None
-STORAGE_URL = "https://gailwmssa.blob.core.windows.net"
+STORAGE_URL = "https://dpdwmssa.blob.core.windows.net"
 
 
 def basic_auth():
@@ -45,9 +49,7 @@ def list_blobs(sub_directory):
     blob_list = container_client.list_blobs(name_starts_with=sub_directory)
     blob_url_list = []
     for blob in blob_list:
-        blob_name = (
-            f"{STORAGE_URL}/{CONTAINER_NAME}/{blob.name}"
-        )
+        blob_name = f"{STORAGE_URL}/{CONTAINER_NAME}/{blob.name}"
         if blob_name.endswith(".tif"):
             blob_url_list.append(blob_name)
 
@@ -61,11 +63,13 @@ def get_workspace(workspace_name):
 
     return status_code, response_text
 
+
 def get_layers(workspace_name):
     url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layers.json"
     status_code, response_text = send_request("GET", url, {})
 
     return status_code, response_text
+
 
 def get_layer_group(workspace_name, layer_group_name):
     url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layergroups/{layer_group_name}.json"
@@ -73,11 +77,13 @@ def get_layer_group(workspace_name, layer_group_name):
 
     return status_code, response_text
 
+
 def get_stores(workspace_name):
     url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores.json"
     status_code, response_text = send_request("GET", url, {})
 
     return status_code, response_text
+
 
 # Create a workspace
 def create_workspace(workspace_name):
@@ -85,26 +91,30 @@ def create_workspace(workspace_name):
     status_code, response_text = get_workspace(workspace_name)
     if status_code == 200:
         logging.info(
-            f"Workspace: {workspace_name} already exists. Response: {response_text}. Status: {status_code}"
+            f"Success: Workspace not created, as it already exists... {workspace_name}"
         )
     else:
         url = f"{GEOSERVER_URL}/workspaces"
         payload = json.dumps({"workspace": {"name": workspace_name}})
 
         status_code, response_text = send_request("POST", url, payload)
-        logging.info(f"Workspace: {workspace_name} created. Response: {response_text}. Status: {status_code}")
+        logging.info(f"Success: Workspace created... {workspace_name}")
 
 
-# Create a GeoTiff store. 
-# Convention --> {Section Name}_{Image Name}. eg: 10260001_S_Name_K.Test_Orthomosaic_19_COG.tif,
-# Where Section Name = 10260001_S_Name & Image Name = K.Test_Orthomosaic_19_COG.tif
+"""
+Create a GeoTiff store.
+Given a blob url: https://gailwmssa.blob.core.windows.net/ril/RIL-RNEI/SurveyRound1/13092025_Part_0001_Orthomosaic.tif
+Store name would be: ril:RIL-RNEI_SurveyRound1_13092025_Part_0001_Orthomosaic
+"""
+
+
 def create_coveragestore(workspace_name, blob_url):
     # Store name cannot have special characters, but can have spaces. Whereas URL cannot have spaces, hence it needs to be encoded.
     image_name = Path(blob_url).stem
     split_names = blob_url.split("/")
-    store_name = f"{split_names[7]}_{image_name}"
-    #store_name = requests.utils.unquote(store_name)
-    
+    store_name = f"{split_names[4]}_{split_names[5]}_{image_name}"
+    # store_name = requests.utils.unquote(store_name)
+
     # Encode the URL
     encoded_blob_url = requests.utils.requote_uri(blob_url)
     encoded_blob_url = f"cog://{encoded_blob_url}?{SAS}"
@@ -133,15 +143,15 @@ def create_coveragestore(workspace_name, blob_url):
         }
     )
 
-    logging.info(f"Creating new coverage store: {store_name} ...")
     status_code, response_text = send_request("POST", url, payload)
 
-    if status_code in [200,201]:
-        logging.info(f"Success. Response: {response_text}. Status: {status_code}")
+    if status_code in [200, 201]:
+        logging.info(f"Success: Coverage store created... {store_name}")
     else:
-        logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
+        logging.error(
+            f"Failed: Coverage store not created... {store_name}. Response: {response_text}"
+        )
         store_name = None
-        
 
     return store_name
 
@@ -149,116 +159,117 @@ def create_coveragestore(workspace_name, blob_url):
 # Create a layer under the given workspace. Convention --> Same name as store name
 def create_layer(workspace_name, store_name, blob_url):
     image_name = Path(blob_url).stem
-    image_name = os.path.basename(image_name).split(".")[0]
-
     url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}/coverages"
-    payload = json.dumps({
-        "coverage": {
-            "name": store_name,
-            "nativeName": store_name,
-            "title": image_name,
-            "nativeCoverageName": image_name,
-            "nativeFormat": "GeoTIFF"
+    payload = json.dumps(
+        {
+            "coverage": {
+                "name": store_name,
+                "nativeName": store_name,
+                "title": image_name,
+                "nativeCoverageName": image_name,
+                "nativeFormat": "GeoTIFF",
+            }
         }
-    })
+    )
 
-    logging.info(f"Creating new layer: {store_name} ...")
     status_code, response_text = send_request("POST", url, payload)
-    if status_code in [200,201]:
-        logging.info(f"Success. Response: {response_text}. Status: {status_code}")
+    if status_code in [200, 201]:
+        logging.info(f"Success: Layer created... {store_name}")
     else:
-        logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
+        logging.error(
+            f"Failed: Layer not created... {store_name}. Response: {response_text}"
+        )
+
 
 # Create new layer group/Update the existing layer group, with newly published layers.
-# Convention --> C01_WorkspaceName_SectionCode. eg: C01_JHBDPL_10260001
 def create_layer_group(workspace_name, new_published_layers, blob_url):
-    logging.info(f"\nLayers to be added to the layer group: {new_published_layers}")
-
-    new_published = []
+    new_published = defaultdict(list)
     new_styles = []
-    
+
     # Get all published layers in the workspace and add only the newly published layers to the layer group. Ignore the rest.
     status_code, layers = get_layers(workspace_name)
     layers = json.loads(layers)
 
     for layer in layers.get("layers").get("layer"):
         if layer["name"] in new_published_layers:
-            new_published.append(
+            image_type = layer["name"].split("_")[-1]
+            new_published[image_type].append(
                 {
                     "@type": "layer",
                     "name": f"{workspace_name}:{layer['name']}",
                     "href": layer["href"],
                 }
             )
+
             new_styles.append("")  # Default style.
 
-    # Create a layer group name
-    split_names = blob_url.split("/")
-    split_cycle_name = split_names[6].split("_")
-    # Make it generic enough. If cycle name doesn't have a cycle number in it, use the whole cycle name. Else, use just the cycle number.
-    if len(split_cycle_name) > 1:
-        cycle_number = split_cycle_name[1]
-    else:
-        cycle_number = split_cycle_name
-    
-    # Find the section code numbers, using regular expression
-    #section_code = split_names[7].split("_")[0]
-    match = re.match(r'^(\d+)', split_names[7])
-    section_code = match.group(1)
-
-    # Construct layer group name
-    layer_group_name = f"C{cycle_number}_{split_names[5]}_{section_code}"
-
-    # Check if the layer group name exists in the workspace
-    status_code, response_text = get_layer_group(workspace_name, layer_group_name)
-
-    # If layer group already exists in the workspace, then update the existing layer group
-    if status_code == 200:
-        logging.info(f"Layer group: {layer_group_name} already exists. Updating it.")
-        method = "PUT"
-        url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layergroups/{layer_group_name}.json"
-        payload = json.loads(response_text)
-        published = payload.get("layerGroup").get("publishables").get("published")
+    for img_type, layer_list in new_published.items():
+        # If no new layers of this type, then skip
+        if not layer_list:
+            continue
         
-        # For the default styles --> style is a string in case of single layer and list in case of multiple layers
-        style = (payload.get("layerGroup").get("styles").get("style"))
-        if isinstance(published, dict): # It is a dictionary when only single layer is present in the layergroup
-            payload.get("layerGroup").get("publishables")["published"] = [published] + new_published
-            payload.get("layerGroup").get("styles")["style"] = [style] + new_styles
-        elif isinstance(published, list): # It is a list when multiple layers are present in the layergroup
-            payload.get("layerGroup").get("publishables")["published"] = published + new_published
-            payload.get("layerGroup").get("styles")["style"] = style + new_styles
-        else:
-            logging.error(f"ERROR: Not adding the layer to the layergroup: {layer_group_name}...........")
-    # If layer group doesn't exist in the workspace, then create a new layer group
-    else:
-        logging.info(f"Creating new layer group: {layer_group_name} ...")
-        method = "POST"
-        url = GEOSERVER_URL + "/layergroups"
-        payload = {
-            "layerGroup": {
-                "name": layer_group_name,
-                "mode": "SINGLE",
-                "title": layer_group_name,
-                "workspace": {"name": workspace_name},
-                "publishables": {"published": new_published},
-            }
-        }
+        # Create a layer group name
+        split_names = blob_url.split("/")
+        base_name = f"{split_names[4]}_{split_names[5]}"
+        layer_group_name = f"{base_name}_{img_type}"
 
-    payload = json.dumps(payload)
-    status_code, response_text = send_request(method, url, payload)
-    if status_code in [200, 201]:
-        logging.info(f"Success. Response: {response_text}. Status: {status_code}")
-    else:
-        logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
+        # Check if the layer group name exists in the workspace
+        status_code, response_text = get_layer_group(workspace_name, layer_group_name)
+
+        if status_code == 200:
+            # If layer group already exists in the workspace, then update the existing layer group
+            method = "PUT"
+            url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/layergroups/{layer_group_name}.json"
+            payload = json.loads(response_text)
+            published = payload.get("layerGroup").get("publishables").get("published")
+
+            # For the default styles --> style is a string in case of single layer and list in case of multiple layers
+            style = payload.get("layerGroup").get("styles").get("style")
+            if isinstance(published, dict):
+                # It is a dictionary when only single layer is present in the layergroup
+                payload.get("layerGroup").get("publishables")["published"] = [published] + layer_list
+                payload.get("layerGroup").get("styles")["style"] = [style] + new_styles
+            elif isinstance(published, list):
+                # It is a list when multiple layers are present in the layergroup
+                payload.get("layerGroup").get("publishables")["published"] = (published + layer_list)
+                payload.get("layerGroup").get("styles")["style"] = style + new_styles
+            else:
+                logging.error(
+                    f"Failed: Not adding the layer to the layergroup... {layer_group_name}"
+                )
+        else:
+            # If layer group doesn't exist in the workspace, then create a new layer group
+            method = "POST"
+            url = GEOSERVER_URL + "/layergroups"
+            payload = {
+                "layerGroup": {
+                    "name": layer_group_name,
+                    "mode": "SINGLE",
+                    "title": layer_group_name,
+                    "workspace": {"name": workspace_name},
+                    "publishables": {"published": layer_list},
+                }
+            }
+
+        payload = json.dumps(payload)
+        status_code, response_text = send_request(method, url, payload)
+        if status_code in [200, 201]:
+            logging.info(f"Success: Layer group created/updated... {layer_group_name}")
+        else:
+            logging.error(
+                f"Failed: Layer group not created/updated... {layer_group_name}. Response: {response_text}"
+            )
 
 
 # Publish all .tif files within the given sub directory
 def publish_folder(sub_directory):
-    workspace_name = sub_directory.split("/")[1]
+    level_1_dir = sub_directory.split("/")[0]
+    workspace_name = level_1_dir.split("_")[0]
 
     # Get a list of all Geotiffs, under the sub directory
     blob_url_list = list_blobs(sub_directory)
+
+    workspace_name = "sdh"
 
     # Create a workspace
     create_workspace(workspace_name)
@@ -266,17 +277,17 @@ def publish_folder(sub_directory):
     store_names = []
     # Iterate over each blob, create a GeoTiff coverage store and publish the layer
     for blob_url in blob_url_list:
-        logging.info("\n")
         store_name = create_coveragestore(workspace_name, blob_url)
         if store_name:
             store_names.append(store_name)
             create_layer(workspace_name, store_name, blob_url)
-    
+
     if store_names:
         # Create/Update layer group and add the newly published layers to the group
         create_layer_group(workspace_name, store_names, blob_url_list[0])
     else:
         logging.info("Nothing to be added to layer group")
+
 
 # Delete all published stores, layers and layer group, corresponding to the given input directory
 def unpublish_folder(sub_directory):
@@ -300,14 +311,17 @@ def unpublish_folder(sub_directory):
 
         # Delete 1 store at a time
         for i, store_name in enumerate(stores_to_delete):
-                logging.info(f"\nDeleting store {i+1}/{len(stores_to_delete)}: {store_name} ...")
-                url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}.json?recurse=true"
-                status_code, response_text = send_request("DELETE", url, {})
-                
-                if status_code in [200, 201]:
-                    logging.info(f"Success. Response: {response_text}. Status: {status_code}")
-                else:
-                    logging.error(f"Failed. Response: {response_text}. Status: {status_code}")
+            url = f"{GEOSERVER_URL}/workspaces/{workspace_name}/coveragestores/{store_name}.json?recurse=true"
+            status_code, response_text = send_request("DELETE", url, {})
+
+            if status_code in [200, 201]:
+                logging.info(
+                    f"Success: Store deleted... {i+1}/{len(stores_to_delete)}: {store_name}"
+                )
+            else:
+                logging.error(
+                    f"Failed: Store not deleted... {i+1}/{len(stores_to_delete)}: {store_name}. Response: {response_text}"
+                )
     else:
         logging.info(f"Nothing to unpublish")
 
@@ -343,8 +357,10 @@ def parse_args():
     parser.add_argument("-sas", "--azure_sas", help="Azure storage SAS", required=True)
 
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("-P", "--publish", help="Publish images", action='store_true')
-    group.add_argument("-D", "--delete", help="Delete published images", action='store_true')
+    group.add_argument("-P", "--publish", help="Publish images", action="store_true")
+    group.add_argument(
+        "-D", "--delete", help="Delete published images", action="store_true"
+    )
 
     args = parser.parse_args()
 
@@ -360,12 +376,14 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    logging.info("Parsing the arguments")
+    logging.info("Parsing the arguments...")
     parse_args()
 
     if PUBLISH:
-        logging.info(f"Publishing the directory: {DIRECTORY}")
+        logging.info(f"Publishing the directory... {DIRECTORY}")
         publish_folder(DIRECTORY)
-    else:
-        logging.info(f"Un-publishing the directory: {DIRECTORY}")
+    elif DELETE:
+        logging.info(f"Un-publishing the directory... {DIRECTORY}")
         unpublish_folder(DIRECTORY)
+    else:
+        logging.error("Nothing to be done")

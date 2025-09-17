@@ -1,5 +1,3 @@
-# Refer ./setup/baseConfig.yaml for full set of config parameters
-
 allow-other: true
 
 logging:

@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.26.1
+    container_name: geoserver
+    environment:
+      - GEOSERVER_ADMIN_PASSWORD=  # Set your password for GeoServer
+      - GEOSERVER_CSRF_DISABLED=true
+      - PROXY_BASE_URL=https://dpd.asteria.co.in/geoserver
+      - INSTALL_EXTENSIONS=true
+      - COMMUNITY_EXTENSIONS=cog-azure,cog-http
+    volumes:
+      - ./geodatadisk:/opt/geoserver_data  # Persist GeoServer data
+      - ./plugins:/opt/additional_libs
+    networks:
+      - geoserver-network
+    expose:
+      - "8080"  # Expose the GeoServer HTTP port inside the network
+    command:
+      - "--log.level=debug"
+
+  reverse-proxy:
+    image: nginx:alpine
+    container_name: reverse-proxy
+    ports:
+      - "80:80"  # HTTP Port
+      - "443:443"  # HTTPS Port
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf  # NGINX configuration file
+      - ./certs:/etc/ssl/certs  # Mount SSL certificates
+    networks:
+      - geoserver-network
+
+networks:
+  geoserver-network:
+    driver: bridge
