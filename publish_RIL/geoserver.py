@@ -269,8 +269,6 @@ def publish_folder(sub_directory):
     # Get a list of all Geotiffs, under the sub directory
     blob_url_list = list_blobs(sub_directory)
 
-    workspace_name = "sdh"
-
     # Create a workspace
     create_workspace(workspace_name)
 
