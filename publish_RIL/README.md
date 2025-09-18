@@ -23,7 +23,7 @@ docker run -it -p8080:8080 --mount type=bind,src=/home/sunil/Downloads/geoserver
 ```
 
 # Naming conventions
-An example of the naming convention followed is explained below with the help of a sample GeoTiff blob: `RIL-RNEI_TEST/SurveyRound1/13092025_Part_0001_Orthomosaic.tif`
+An example of the naming convention followed is explained below with the help of a sample GeoTiff blob: `RIL-RNEI_TEST/SurveyRound1/13092025_Part_0001_DSM.tif`
 
 **Following are created by the python code, when an image gets published to GeoServer:**
 
